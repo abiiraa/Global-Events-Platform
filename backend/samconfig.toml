@@ -1,8 +1,8 @@
 # ============================================================
 # SAM CLI configuration — Root stack
 # Run: cd backend && sam deploy
-# Override secrets on CLI:
-#   sam deploy --parameter-overrides AdminEmail=... AdminApiKey=...
+# Store the Google client secret once in Secrets Manager:
+#   aws secretsmanager create-secret --name gsep/google-client-secret --secret-string "..."
 # ============================================================
 version = 0.1
 
@@ -23,8 +23,8 @@ resolve_s3        = false
 s3_bucket         = "gsep-platform-deployments-008349342377"
 stack_name        = "GEP"
 s3_prefix         = "GEP"
-# Fill in real values — do NOT commit secrets here; use samconfig.local.toml (gitignored)
-parameter_overrides = "StageName=\"Prod\" AdminEmail=\"admin@gsep.com\" AdminPassword=\"admin123!\" AdminApiKey=\"replace-with-real-key\" DefaultBatchSize=\"100\" PurchasingCapacity=\"10000\""
+# Do not put plaintext OAuth client secrets here.
+parameter_overrides = "StageName=\"Prod\" AdminEmail=\"admin@gep.com\" AdminPassword=\"admin123!\" AdminApiKey=\"53d1a2703d76b17c5fd1c9ddeb884572bb1de30956bdc2f1d27df074bf0503e5\" DefaultBatchSize=\"100\" PurchasingCapacity=\"10000\" CognitoDomainPrefix=\"global-event-platform-008349342377\" OAuthCallbackUrls=\"https://global-event-platform.vercel.app/\" OAuthLogoutUrls=\"https://global-event-platform.vercel.app/\" GoogleClientId=\"151896926880-hqfs0hj49jddgpqolkfc1j7snk27cfd7.apps.googleusercontent.com\" GoogleClientSecretId=\"gsep/google-client-secret\""
 
 [default.package.parameters]
 resolve_s3 = true

@@ -24,6 +24,14 @@ Parameters:
     NoEcho: true
     Default: ""
     Description: API key for admin operations
+  DefaultBatchSize:
+    Type: Number
+    Default: 100
+    Description: Default waiting-room admission batch size
+  PurchasingCapacity:
+    Type: Number
+    Default: 10000
+    Description: Maximum active purchasing capacity for waiting-room admissions
   EventBridgeBusName:
     Type: String
     Default: GlobalSportingEventsBus
@@ -36,11 +44,10 @@ Parameters:
     Type: String
     Default: ""
     Description: Optional Google OAuth client ID for Cognito federation.
-  GoogleClientSecret:
+  GoogleClientSecretId:
     Type: String
-    NoEcho: true
-    Default: ""
-    Description: Optional Google OAuth client secret for Cognito federation.
+    Default: "gsep/google-client-secret"
+    Description: Secrets Manager secret ID containing the Google OAuth client secret.
   OAuthCallbackUrls:
     Type: CommaDelimitedList
     Default: "http://localhost:5173/"
@@ -51,10 +58,12 @@ Parameters:
     Description: Comma-delimited logout URLs for Cognito Hosted UI.
 
 Conditions:
+  EnableCognitoHostedUI: !Not [!Equals [!Ref CognitoDomainPrefix, ""]]
   EnableGoogleOAuth: !And
-    - !Not [!Equals [!Ref CognitoDomainPrefix, ""]]
+    - !Condition EnableCognitoHostedUI
     - !Not [!Equals [!Ref GoogleClientId, ""]]
-    - !Not [!Equals [!Ref GoogleClientSecret, ""]]
+    - !Not [!Equals [!Ref GoogleClientSecretId, ""]]
+  DisableGoogleOAuth: !Not [!Condition EnableGoogleOAuth]
 
 Resources:
   # ==========================================================================
@@ -127,6 +136,7 @@ Resources:
 
   PlatformUserPoolClient:
     Type: AWS::Cognito::UserPoolClient
+    Condition: DisableGoogleOAuth
     Properties:
       ClientName: !Sub "${AWS::StackName}-WebClient"
       UserPoolId: !Ref PlatformUserPool
@@ -135,24 +145,47 @@ Resources:
         - ALLOW_USER_SRP_AUTH
         - ALLOW_REFRESH_TOKEN_AUTH
         - ALLOW_USER_PASSWORD_AUTH
-      SupportedIdentityProviders: !If
-        - EnableGoogleOAuth
-        - - COGNITO
-          - Google
-        - - COGNITO
-      AllowedOAuthFlowsUserPoolClient: !If [EnableGoogleOAuth, true, !Ref AWS::NoValue]
+      SupportedIdentityProviders:
+        - COGNITO
+      AllowedOAuthFlowsUserPoolClient: !If [EnableCognitoHostedUI, true, !Ref AWS::NoValue]
       AllowedOAuthFlows: !If
-        - EnableGoogleOAuth
+        - EnableCognitoHostedUI
         - - code
         - !Ref AWS::NoValue
       AllowedOAuthScopes: !If
-        - EnableGoogleOAuth
+        - EnableCognitoHostedUI
         - - email
           - openid
           - profile
         - !Ref AWS::NoValue
-      CallbackURLs: !If [EnableGoogleOAuth, !Ref OAuthCallbackUrls, !Ref AWS::NoValue]
-      LogoutURLs: !If [EnableGoogleOAuth, !Ref OAuthLogoutUrls, !Ref AWS::NoValue]
+      CallbackURLs: !If [EnableCognitoHostedUI, !Ref OAuthCallbackUrls, !Ref AWS::NoValue]
+      LogoutURLs: !If [EnableCognitoHostedUI, !Ref OAuthLogoutUrls, !Ref AWS::NoValue]
+
+  PlatformGoogleUserPoolClient:
+    Type: AWS::Cognito::UserPoolClient
+    Condition: EnableGoogleOAuth
+    DependsOn:
+      - PlatformGoogleIdentityProvider
+    Properties:
+      ClientName: !Sub "${AWS::StackName}-WebClient"
+      UserPoolId: !Ref PlatformUserPool
+      GenerateSecret: false
+      ExplicitAuthFlows:
+        - ALLOW_USER_SRP_AUTH
+        - ALLOW_REFRESH_TOKEN_AUTH
+        - ALLOW_USER_PASSWORD_AUTH
+      SupportedIdentityProviders:
+        - COGNITO
+        - Google
+      AllowedOAuthFlowsUserPoolClient: true
+      AllowedOAuthFlows:
+        - code
+      AllowedOAuthScopes:
+        - email
+        - openid
+        - profile
+      CallbackURLs: !Ref OAuthCallbackUrls
+      LogoutURLs: !Ref OAuthLogoutUrls
 
   PlatformGoogleIdentityProvider:
     Type: AWS::Cognito::UserPoolIdentityProvider
@@ -163,7 +196,7 @@ Resources:
       ProviderType: Google
       ProviderDetails:
         client_id: !Ref GoogleClientId
-        client_secret: !Ref GoogleClientSecret
+        client_secret: !Sub "{{resolve:secretsmanager:${GoogleClientSecretId}:SecretString}}"
         authorize_scopes: "email openid profile"
       AttributeMapping:
         email: email
@@ -171,7 +204,7 @@ Resources:
 
   PlatformUserPoolDomain:
     Type: AWS::Cognito::UserPoolDomain
-    Condition: EnableGoogleOAuth
+    Condition: EnableCognitoHostedUI
     Properties:
       Domain: !Ref CognitoDomainPrefix
       UserPoolId: !Ref PlatformUserPool
@@ -188,6 +221,8 @@ Resources:
         AdminEmail: !Ref AdminEmail
         AdminPassword: !Ref AdminPassword
         AdminApiKey: !Ref AdminApiKey
+        DefaultBatchSize: !Ref DefaultBatchSize
+        PurchasingCapacity: !Ref PurchasingCapacity
 
   # ==========================================================================
   # Module: Fair Seat Purchase (Challenge 2)
@@ -258,9 +293,9 @@ Outputs:
 
   UserPoolClientId:
     Description: Cognito User Pool Client ID
-    Value: !Ref PlatformUserPoolClient
+    Value: !If [EnableGoogleOAuth, !Ref PlatformGoogleUserPoolClient, !Ref PlatformUserPoolClient]
 
   CognitoOAuthDomain:
-    Condition: EnableGoogleOAuth
+    Condition: EnableCognitoHostedUI
     Description: Cognito Hosted UI OAuth domain for frontend VITE_COGNITO_OAUTH_DOMAIN
     Value: !Sub "${CognitoDomainPrefix}.auth.${AWS::Region}.amazoncognito.com"

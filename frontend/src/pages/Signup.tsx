@@ -55,7 +55,8 @@ export default function Signup() {
     try {
       const attributes: Record<string, string> = {
         email: trimmedEmail,
-        name: trimmedName
+        name: trimmedName,
+        preferred_username: trimmedUsername
       }
 
       const { isSignUpComplete, nextStep } = await signUp({
