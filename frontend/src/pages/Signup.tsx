@@ -13,7 +13,7 @@ export default function Signup() {
   const [email, setEmail] = useState(location.state?.email || '')
   
   // Signup State
-  const [username, setUsername] = useState('')
+  const [username, setUsername] = useState(location.state?.username || sessionStorage.getItem('gsep_pending_username') || '')
   const [name, setName] = useState('')
   const [password, setPassword] = useState('')
   const [confirmPassword, setConfirmPassword] = useState('')
@@ -32,8 +32,11 @@ export default function Signup() {
   async function handleSignup(e: React.FormEvent) {
     e.preventDefault()
     setError('')
+    const trimmedUsername = username.trim()
+    const trimmedEmail = email.trim()
+    const trimmedName = name.trim()
 
-    if (!username || !name || !email || !password || !confirmPassword) {
+    if (!trimmedUsername || !trimmedName || !trimmedEmail || !password || !confirmPassword) {
       setError('All fields are required')
       return
     }
@@ -43,7 +46,7 @@ export default function Signup() {
       return
     }
 
-    if (username.includes('@')) {
+    if (trimmedUsername.includes('@')) {
       setError('Username cannot be an email address')
       return
     }
@@ -51,13 +54,12 @@ export default function Signup() {
     setIsSubmitting(true)
     try {
       const attributes: Record<string, string> = {
-        email,
-        name,
-        preferred_username: username
+        email: trimmedEmail,
+        name: trimmedName
       }
 
       const { isSignUpComplete, nextStep } = await signUp({
-        username,
+        username: trimmedUsername,
         password,
         options: {
           userAttributes: attributes
@@ -65,8 +67,12 @@ export default function Signup() {
       })
 
       if (isSignUpComplete) {
+        sessionStorage.removeItem('gsep_pending_username')
         navigate('/login')
       } else if (nextStep.signUpStep === 'CONFIRM_SIGN_UP') {
+        setUsername(trimmedUsername)
+        setEmail(trimmedEmail)
+        sessionStorage.setItem('gsep_pending_username', trimmedUsername)
         setStep('confirm')
       }
     } catch (err: any) {
@@ -93,6 +99,7 @@ export default function Signup() {
       })
 
       if (isSignUpComplete) {
+        sessionStorage.removeItem('gsep_pending_username')
         navigate('/login')
       }
     } catch (err: any) {

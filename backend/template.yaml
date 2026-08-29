@@ -76,7 +76,6 @@ Resources:
         - email
       AliasAttributes:
         - email
-        - preferred_username
       Policies:
         PasswordPolicy:
           MinimumLength: 8
@@ -88,7 +87,7 @@ Resources:
         - Name: preferred_username
           AttributeDataType: String
           Mutable: true
-          Required: true
+          Required: false
         - Name: email
           AttributeDataType: String
           Mutable: true
@@ -169,7 +168,6 @@ Resources:
       AttributeMapping:
         email: email
         name: name
-        preferred_username: sub
 
   PlatformUserPoolDomain:
     Type: AWS::Cognito::UserPoolDomain

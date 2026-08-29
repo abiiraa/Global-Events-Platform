@@ -25,7 +25,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         id: currentUser.userId,
         name: attributes.name || '',
         email: attributes.email || '',
-        username: attributes.preferred_username || '',
+        username: attributes.preferred_username || currentUser.username || '',
         phone_number: attributes.phone_number || '',
         address: attributes.address || '',
       })
