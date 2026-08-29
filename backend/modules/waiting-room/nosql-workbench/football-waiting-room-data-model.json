@@ -1,0 +1,915 @@
+{
+  "ModelName": "Football Virtual Waiting Room",
+  "ModelMetadata": {
+    "Author": "",
+    "DateCreated": "Jul 11, 2026, 12:00 PM",
+    "DateLastModified": "Jul 28, 2026, 12:00 PM",
+    "Description": "DynamoDB model aligned with template.yaml. Queue position format: {ms:014d}-{uuid8}.",
+    "AWSService": "Amazon DynamoDB",
+    "Version": "4.0"
+  },
+  "DataModel": [
+    {
+      "TableName": "FootballWaitingRoom",
+      "KeyAttributes": {
+        "PartitionKey": {
+          "AttributeName": "PK",
+          "AttributeType": "S"
+        },
+        "SortKey": {
+          "AttributeName": "SK",
+          "AttributeType": "S"
+        }
+      },
+      "NonKeyAttributes": [
+        {
+          "AttributeName": "GSI1PK",
+          "AttributeType": "S"
+        },
+        {
+          "AttributeName": "GSI1SK",
+          "AttributeType": "S"
+        },
+        {
+          "AttributeName": "GSI2PK",
+          "AttributeType": "S"
+        },
+        {
+          "AttributeName": "GSI2SK",
+          "AttributeType": "S"
+        },
+        {
+          "AttributeName": "GSI3PK",
+          "AttributeType": "S"
+        },
+        {
+          "AttributeName": "GSI3SK",
+          "AttributeType": "S"
+        },
+        {
+          "AttributeName": "entityType",
+          "AttributeType": "S"
+        },
+        {
+          "AttributeName": "eventId",
+          "AttributeType": "S"
+        },
+        {
+          "AttributeName": "matchName",
+          "AttributeType": "S"
+        },
+        {
+          "AttributeName": "stadium",
+          "AttributeType": "S"
+        },
+        {
+          "AttributeName": "capacity",
+          "AttributeType": "N"
+        },
+        {
+          "AttributeName": "status",
+          "AttributeType": "S"
+        },
+        {
+          "AttributeName": "startTime",
+          "AttributeType": "S"
+        },
+        {
+          "AttributeName": "createdAt",
+          "AttributeType": "S"
+        },
+        {
+          "AttributeName": "updatedAt",
+          "AttributeType": "S"
+        },
+        {
+          "AttributeName": "waitingUsers",
+          "AttributeType": "N"
+        },
+        {
+          "AttributeName": "admittedUsers",
+          "AttributeType": "N"
+        },
+        {
+          "AttributeName": "completedUsers",
+          "AttributeType": "N"
+        },
+        {
+          "AttributeName": "cancelledUsers",
+          "AttributeType": "N"
+        },
+        {
+          "AttributeName": "closedUsers",
+          "AttributeType": "N"
+        },
+        {
+          "AttributeName": "totalUsers",
+          "AttributeType": "N"
+        },
+        {
+          "AttributeName": "currentlyServingPosition",
+          "AttributeType": "S"
+        },
+        {
+          "AttributeName": "userId",
+          "AttributeType": "S"
+        },
+        {
+          "AttributeName": "queueShard",
+          "AttributeType": "N"
+        },
+        {
+          "AttributeName": "queuePosition",
+          "AttributeType": "S"
+        },
+        {
+          "AttributeName": "joinTime",
+          "AttributeType": "S"
+        },
+        {
+          "AttributeName": "estimatedWait",
+          "AttributeType": "N"
+        },
+        {
+          "AttributeName": "admissionTime",
+          "AttributeType": "S"
+        },
+        {
+          "AttributeName": "tokenId",
+          "AttributeType": "S"
+        },
+        {
+          "AttributeName": "batchId",
+          "AttributeType": "S"
+        },
+        {
+          "AttributeName": "completedAt",
+          "AttributeType": "S"
+        },
+        {
+          "AttributeName": "expiresAt",
+          "AttributeType": "N"
+        },
+        {
+          "AttributeName": "ttl",
+          "AttributeType": "N"
+        },
+        {
+          "AttributeName": "queuePK",
+          "AttributeType": "S"
+        },
+        {
+          "AttributeName": "queueSK",
+          "AttributeType": "S"
+        },
+        {
+          "AttributeName": "sessionId",
+          "AttributeType": "S"
+        },
+        {
+          "AttributeName": "lastActivity",
+          "AttributeType": "S"
+        },
+        {
+          "AttributeName": "device",
+          "AttributeType": "S"
+        }
+      ],
+      "GlobalSecondaryIndexes": [
+        {
+          "IndexName": "GSI1",
+          "KeyAttributes": {
+            "PartitionKey": {
+              "AttributeName": "GSI1PK",
+              "AttributeType": "S"
+            },
+            "SortKey": {
+              "AttributeName": "GSI1SK",
+              "AttributeType": "S"
+            }
+          },
+          "Projection": {
+            "ProjectionType": "INCLUDE",
+            "NonKeyAttributes": [
+              "queuePosition",
+              "status",
+              "joinTime",
+              "estimatedWait",
+              "eventId",
+              "userId",
+              "entityType"
+            ]
+          }
+        },
+        {
+          "IndexName": "GSI2",
+          "KeyAttributes": {
+            "PartitionKey": {
+              "AttributeName": "GSI2PK",
+              "AttributeType": "S"
+            },
+            "SortKey": {
+              "AttributeName": "GSI2SK",
+              "AttributeType": "S"
+            }
+          },
+          "Projection": {
+            "ProjectionType": "INCLUDE",
+            "NonKeyAttributes": [
+              "tokenId",
+              "userId",
+              "eventId",
+              "status",
+              "expiresAt",
+              "entityType"
+            ]
+          }
+        },
+        {
+          "IndexName": "GSI3",
+          "KeyAttributes": {
+            "PartitionKey": {
+              "AttributeName": "GSI3PK",
+              "AttributeType": "S"
+            },
+            "SortKey": {
+              "AttributeName": "GSI3SK",
+              "AttributeType": "S"
+            }
+          },
+          "Projection": {
+            "ProjectionType": "INCLUDE",
+            "NonKeyAttributes": [
+              "queuePosition",
+              "status",
+              "userId",
+              "entityType",
+              "eventId",
+              "joinTime",
+              "estimatedWait",
+              "admissionTime",
+              "batchId"
+            ]
+          }
+        }
+      ],
+      "TableData": [
+        {
+          "PK": {
+            "S": "EVENT#1001"
+          },
+          "SK": {
+            "S": "METADATA"
+          },
+          "entityType": {
+            "S": "EVENT"
+          },
+          "eventId": {
+            "S": "1001"
+          },
+          "matchName": {
+            "S": "Manchester United vs Liverpool"
+          },
+          "stadium": {
+            "S": "Old Trafford"
+          },
+          "capacity": {
+            "N": "50000"
+          },
+          "status": {
+            "S": "OPEN"
+          },
+          "startTime": {
+            "S": "2026-07-12T15:00:00Z"
+          },
+          "createdAt": {
+            "S": "2026-07-10T12:00:00Z"
+          },
+          "updatedAt": {
+            "S": "2026-07-10T12:00:00Z"
+          }
+        },
+        {
+          "PK": {
+            "S": "EVENT#1001"
+          },
+          "SK": {
+            "S": "STATS#SHARD#00"
+          },
+          "entityType": {
+            "S": "STATS"
+          },
+          "eventId": {
+            "S": "1001"
+          },
+          "waitingUsers": {
+            "N": "2"
+          },
+          "admittedUsers": {
+            "N": "1"
+          },
+          "completedUsers": {
+            "N": "1"
+          },
+          "cancelledUsers": {
+            "N": "0"
+          },
+          "totalUsers": {
+            "N": "4"
+          },
+          "currentlyServingPosition": {
+            "S": "01783706484100-a901de5f"
+          }
+        },
+        {
+          "PK": {
+            "S": "EVENT#1001#SHARD#00"
+          },
+          "SK": {
+            "S": "QUEUE#01783706482123-8f4a1b2c"
+          },
+          "entityType": {
+            "S": "QUEUE"
+          },
+          "eventId": {
+            "S": "1001"
+          },
+          "userId": {
+            "S": "FAN-0001"
+          },
+          "queueShard": {
+            "N": "0"
+          },
+          "queuePosition": {
+            "S": "01783706482123-8f4a1b2c"
+          },
+          "status": {
+            "S": "WAITING"
+          },
+          "joinTime": {
+            "S": "2026-07-10T18:01:22Z"
+          },
+          "estimatedWait": {
+            "N": "1"
+          },
+          "admissionTime": {
+            "S": ""
+          },
+          "createdAt": {
+            "S": "2026-07-10T18:01:22Z"
+          },
+          "updatedAt": {
+            "S": "2026-07-10T18:01:22Z"
+          },
+          "GSI1PK": {
+            "S": "USER#FAN-0001"
+          },
+          "GSI1SK": {
+            "S": "EVENT#1001"
+          },
+          "GSI3PK": {
+            "S": "EVENT#1001#SHARD#00"
+          },
+          "GSI3SK": {
+            "S": "STATUS#WAITING#01783706482123-8f4a1b2c"
+          }
+        },
+        {
+          "PK": {
+            "S": "EVENT#1001#SHARD#03"
+          },
+          "SK": {
+            "S": "QUEUE#01783706483001-40bd7e12"
+          },
+          "entityType": {
+            "S": "QUEUE"
+          },
+          "eventId": {
+            "S": "1001"
+          },
+          "userId": {
+            "S": "FAN-0002"
+          },
+          "queueShard": {
+            "N": "3"
+          },
+          "queuePosition": {
+            "S": "01783706483001-40bd7e12"
+          },
+          "status": {
+            "S": "WAITING"
+          },
+          "joinTime": {
+            "S": "2026-07-10T18:01:23Z"
+          },
+          "estimatedWait": {
+            "N": "2"
+          },
+          "admissionTime": {
+            "S": ""
+          },
+          "createdAt": {
+            "S": "2026-07-10T18:01:23Z"
+          },
+          "updatedAt": {
+            "S": "2026-07-10T18:01:23Z"
+          },
+          "GSI1PK": {
+            "S": "USER#FAN-0002"
+          },
+          "GSI1SK": {
+            "S": "EVENT#1001"
+          },
+          "GSI3PK": {
+            "S": "EVENT#1001#SHARD#03"
+          },
+          "GSI3SK": {
+            "S": "STATUS#WAITING#01783706483001-40bd7e12"
+          }
+        },
+        {
+          "PK": {
+            "S": "EVENT#1001#SHARD#05"
+          },
+          "SK": {
+            "S": "QUEUE#01783706484100-a901de5f"
+          },
+          "entityType": {
+            "S": "QUEUE"
+          },
+          "eventId": {
+            "S": "1001"
+          },
+          "userId": {
+            "S": "FAN-0003"
+          },
+          "queueShard": {
+            "N": "5"
+          },
+          "queuePosition": {
+            "S": "01783706484100-a901de5f"
+          },
+          "status": {
+            "S": "ADMITTED"
+          },
+          "joinTime": {
+            "S": "2026-07-10T18:01:24Z"
+          },
+          "estimatedWait": {
+            "N": "3"
+          },
+          "admissionTime": {
+            "S": "2026-07-10T18:05:00Z"
+          },
+          "tokenId": {
+            "S": "TOK-1001-0001"
+          },
+          "batchId": {
+            "S": "BATCH#1001#2026-07-10T18:05:00Z#c7f2a9e1"
+          },
+          "createdAt": {
+            "S": "2026-07-10T18:01:24Z"
+          },
+          "updatedAt": {
+            "S": "2026-07-10T18:05:00Z"
+          },
+          "GSI1PK": {
+            "S": "USER#FAN-0003"
+          },
+          "GSI1SK": {
+            "S": "EVENT#1001"
+          },
+          "GSI3PK": {
+            "S": "EVENT#1001#SHARD#05"
+          },
+          "GSI3SK": {
+            "S": "STATUS#ADMITTED#01783706484100-a901de5f"
+          }
+        },
+        {
+          "PK": {
+            "S": "EVENT#1001#SHARD#10"
+          },
+          "SK": {
+            "S": "QUEUE#01783706481000-d4e5f6a7"
+          },
+          "entityType": {
+            "S": "QUEUE"
+          },
+          "eventId": {
+            "S": "1001"
+          },
+          "userId": {
+            "S": "FAN-0010"
+          },
+          "queueShard": {
+            "N": "10"
+          },
+          "queuePosition": {
+            "S": "01783706481000-d4e5f6a7"
+          },
+          "status": {
+            "S": "COMPLETED"
+          },
+          "joinTime": {
+            "S": "2026-07-10T18:01:21Z"
+          },
+          "estimatedWait": {
+            "N": "0"
+          },
+          "admissionTime": {
+            "S": "2026-07-10T18:03:00Z"
+          },
+          "tokenId": {
+            "S": "TOK-1001-0010"
+          },
+          "batchId": {
+            "S": "BATCH#1001#2026-07-10T18:03:00Z#1a2b3c4d"
+          },
+          "completedAt": {
+            "S": "2026-07-10T18:08:30Z"
+          },
+          "createdAt": {
+            "S": "2026-07-10T18:01:21Z"
+          },
+          "updatedAt": {
+            "S": "2026-07-10T18:08:30Z"
+          },
+          "GSI1PK": {
+            "S": "USER#FAN-0010"
+          },
+          "GSI1SK": {
+            "S": "EVENT#1001"
+          },
+          "GSI3PK": {
+            "S": "EVENT#1001#SHARD#10"
+          },
+          "GSI3SK": {
+            "S": "STATUS#COMPLETED#01783706481000-d4e5f6a7"
+          }
+        },
+        {
+          "PK": {
+            "S": "EVENT#1002#SHARD#01"
+          },
+          "SK": {
+            "S": "QUEUE#01783706530500-b337ca08"
+          },
+          "entityType": {
+            "S": "QUEUE"
+          },
+          "eventId": {
+            "S": "1002"
+          },
+          "userId": {
+            "S": "FAN-0004"
+          },
+          "queueShard": {
+            "N": "1"
+          },
+          "queuePosition": {
+            "S": "01783706530500-b337ca08"
+          },
+          "status": {
+            "S": "WAITING"
+          },
+          "joinTime": {
+            "S": "2026-07-10T18:02:10Z"
+          },
+          "estimatedWait": {
+            "N": "1"
+          },
+          "admissionTime": {
+            "S": ""
+          },
+          "createdAt": {
+            "S": "2026-07-10T18:02:10Z"
+          },
+          "updatedAt": {
+            "S": "2026-07-10T18:02:10Z"
+          },
+          "GSI1PK": {
+            "S": "USER#FAN-0004"
+          },
+          "GSI1SK": {
+            "S": "EVENT#1002"
+          },
+          "GSI3PK": {
+            "S": "EVENT#1002#SHARD#01"
+          },
+          "GSI3SK": {
+            "S": "STATUS#WAITING#01783706530500-b337ca08"
+          }
+        },
+        {
+          "PK": {
+            "S": "EVENT#1002#SHARD#08"
+          },
+          "SK": {
+            "S": "QUEUE#01783706531500-cc21f4a9"
+          },
+          "entityType": {
+            "S": "QUEUE"
+          },
+          "eventId": {
+            "S": "1002"
+          },
+          "userId": {
+            "S": "FAN-0005"
+          },
+          "queueShard": {
+            "N": "8"
+          },
+          "queuePosition": {
+            "S": "01783706531500-cc21f4a9"
+          },
+          "status": {
+            "S": "CANCELLED"
+          },
+          "joinTime": {
+            "S": "2026-07-10T18:02:11Z"
+          },
+          "estimatedWait": {
+            "N": "2"
+          },
+          "admissionTime": {
+            "S": ""
+          },
+          "createdAt": {
+            "S": "2026-07-10T18:02:11Z"
+          },
+          "updatedAt": {
+            "S": "2026-07-10T18:03:01Z"
+          },
+          "GSI1PK": {
+            "S": "USER#FAN-0005"
+          },
+          "GSI1SK": {
+            "S": "EVENT#1002"
+          },
+          "GSI3PK": {
+            "S": "EVENT#1002#SHARD#08"
+          },
+          "GSI3SK": {
+            "S": "STATUS#CANCELLED#01783706531500-cc21f4a9"
+          }
+        },
+        {
+          "PK": {
+            "S": "TOKEN#TOK-1001-0001"
+          },
+          "SK": {
+            "S": "METADATA"
+          },
+          "entityType": {
+            "S": "TOKEN"
+          },
+          "tokenId": {
+            "S": "TOK-1001-0001"
+          },
+          "userId": {
+            "S": "FAN-0003"
+          },
+          "eventId": {
+            "S": "1001"
+          },
+          "status": {
+            "S": "ACTIVE"
+          },
+          "expiresAt": {
+            "N": "1783710982"
+          },
+          "ttl": {
+            "N": "1783710982"
+          },
+          "createdAt": {
+            "S": "2026-07-10T18:05:00Z"
+          },
+          "GSI2PK": {
+            "S": "TOKEN#TOK-1001-0001"
+          },
+          "GSI2SK": {
+            "S": "STATUS#ACTIVE"
+          }
+        },
+        {
+          "PK": {
+            "S": "TOKEN#TOK-1001-0010"
+          },
+          "SK": {
+            "S": "METADATA"
+          },
+          "entityType": {
+            "S": "TOKEN"
+          },
+          "tokenId": {
+            "S": "TOK-1001-0010"
+          },
+          "userId": {
+            "S": "FAN-0010"
+          },
+          "eventId": {
+            "S": "1001"
+          },
+          "status": {
+            "S": "USED"
+          },
+          "expiresAt": {
+            "N": "1783710000"
+          },
+          "ttl": {
+            "N": "1783710000"
+          },
+          "createdAt": {
+            "S": "2026-07-10T18:03:00Z"
+          },
+          "GSI2PK": {
+            "S": "TOKEN#TOK-1001-0010"
+          },
+          "GSI2SK": {
+            "S": "STATUS#USED"
+          }
+        },
+        {
+          "PK": {
+            "S": "TOKEN#TOK-1001-0003"
+          },
+          "SK": {
+            "S": "METADATA"
+          },
+          "entityType": {
+            "S": "TOKEN"
+          },
+          "tokenId": {
+            "S": "TOK-1001-0003"
+          },
+          "userId": {
+            "S": "FAN-0007"
+          },
+          "eventId": {
+            "S": "1001"
+          },
+          "status": {
+            "S": "EXPIRED"
+          },
+          "expiresAt": {
+            "N": "1783700000"
+          },
+          "ttl": {
+            "N": "1783700000"
+          },
+          "createdAt": {
+            "S": "2026-07-10T17:50:00Z"
+          },
+          "GSI2PK": {
+            "S": "TOKEN#TOK-1001-0003"
+          },
+          "GSI2SK": {
+            "S": "STATUS#EXPIRED"
+          }
+        },
+        {
+          "PK": {
+            "S": "USER#FAN-0001"
+          },
+          "SK": {
+            "S": "QUEUE#EVENT#1001"
+          },
+          "entityType": {
+            "S": "QUEUE_REGISTRATION"
+          },
+          "eventId": {
+            "S": "1001"
+          },
+          "userId": {
+            "S": "FAN-0001"
+          },
+          "queuePosition": {
+            "S": "01783706482123-8f4a1b2c"
+          },
+          "queuePK": {
+            "S": "EVENT#1001#SHARD#00"
+          },
+          "queueSK": {
+            "S": "QUEUE#01783706482123-8f4a1b2c"
+          },
+          "queueShard": {
+            "N": "0"
+          },
+          "status": {
+            "S": "WAITING"
+          },
+          "estimatedWait": {
+            "N": "1"
+          }
+        },
+        {
+          "PK": {
+            "S": "USER#FAN-0003"
+          },
+          "SK": {
+            "S": "QUEUE#EVENT#1001"
+          },
+          "entityType": {
+            "S": "QUEUE_REGISTRATION"
+          },
+          "eventId": {
+            "S": "1001"
+          },
+          "userId": {
+            "S": "FAN-0003"
+          },
+          "queuePosition": {
+            "S": "01783706484100-a901de5f"
+          },
+          "queuePK": {
+            "S": "EVENT#1001#SHARD#05"
+          },
+          "queueSK": {
+            "S": "QUEUE#01783706484100-a901de5f"
+          },
+          "queueShard": {
+            "N": "5"
+          },
+          "status": {
+            "S": "ADMITTED"
+          },
+          "tokenId": {
+            "S": "TOK-1001-0001"
+          },
+          "batchId": {
+            "S": "BATCH#1001#2026-07-10T18:05:00Z#c7f2a9e1"
+          }
+        },
+        {
+          "PK": {
+            "S": "USER#FAN-0010"
+          },
+          "SK": {
+            "S": "QUEUE#EVENT#1001"
+          },
+          "entityType": {
+            "S": "QUEUE_REGISTRATION"
+          },
+          "eventId": {
+            "S": "1001"
+          },
+          "userId": {
+            "S": "FAN-0010"
+          },
+          "queuePosition": {
+            "S": "01783706481000-d4e5f6a7"
+          },
+          "queuePK": {
+            "S": "EVENT#1001#SHARD#10"
+          },
+          "queueSK": {
+            "S": "QUEUE#01783706481000-d4e5f6a7"
+          },
+          "queueShard": {
+            "N": "10"
+          },
+          "status": {
+            "S": "COMPLETED"
+          },
+          "tokenId": {
+            "S": "TOK-1001-0010"
+          },
+          "batchId": {
+            "S": "BATCH#1001#2026-07-10T18:03:00Z#1a2b3c4d"
+          }
+        },
+        {
+          "PK": {
+            "S": "USER#FAN-0001"
+          },
+          "SK": {
+            "S": "SESSION#ACTIVE"
+          },
+          "entityType": {
+            "S": "SESSION"
+          },
+          "sessionId": {
+            "S": "SESSION-FAN-0001"
+          },
+          "userId": {
+            "S": "FAN-0001"
+          },
+          "lastActivity": {
+            "S": "2026-07-10T18:04:00Z"
+          },
+          "device": {
+            "S": "browser"
+          },
+          "ttl": {
+            "N": "1783712040"
+          }
+        }
+      ],
+      "DataAccess": {
+        "MySql": {}
+      },
+      "BillingMode": "PAY_PER_REQUEST"
+    }
+  ]
+}

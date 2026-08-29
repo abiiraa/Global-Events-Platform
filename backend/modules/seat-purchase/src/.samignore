@@ -1,0 +1,18 @@
+# These packages are provided by the Lambda runtime — exclude to keep zip small
+boto3
+boto3-*
+botocore
+botocore-*
+s3transfer
+s3transfer-*
+jmespath
+jmespath-*
+dateutil
+python_dateutil-*
+six
+six-*
+urllib3
+urllib3-*
+__pycache__
+*.pyc
+*.pyo

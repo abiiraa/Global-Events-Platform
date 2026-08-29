@@ -1,0 +1,305 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: >
+  Infinite Leaderboard — AWS Builder Center DynamoDB Data Modeling Challenge Phase 4.
+  Handles extreme write concurrency via sharding and scatter-gather queries for ranks.
+
+Globals:
+  Function:
+    Runtime: python3.14
+    Timeout: 30
+    MemorySize: 256
+    Architectures:
+      - x86_64
+    Environment:
+      Variables:
+        TABLE_NAME:
+          Ref: LeaderboardTable
+        LOG_LEVEL: INFO
+        ADMIN_API_KEY:
+          Ref: AdminApiKey
+        ADMIN_EMAIL:
+          Ref: AdminEmail
+        ADMIN_PASSWORD:
+          Ref: AdminPassword
+    LoggingConfig:
+      LogFormat: JSON
+
+Parameters:
+  StageName:
+    Type: String
+    Default: Prod
+    Description: API Gateway deployment stage name
+  AdminApiKey:
+    Type: String
+    NoEcho: true
+    Default: ""
+    Description: API key for admin operations
+  AdminEmail:
+    Type: String
+    Default: admin@example.com
+    Description: Admin login email
+  AdminPassword:
+    Type: String
+    NoEcho: true
+    Default: changeme
+    Description: Admin login password
+  EventBridgeBusName:
+    Type: String
+    Default: GlobalSportingEventsBus
+    Description: EventBridge bus name for cross-module events
+
+Resources:
+  # ==========================================================================
+  # DynamoDB Table — Single Table Design for Leaderboard
+  # ==========================================================================
+  LeaderboardTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: LeaderboardTable
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: PK
+          AttributeType: S
+        - AttributeName: SK
+          AttributeType: S
+        - AttributeName: GSI1PK
+          AttributeType: S
+        - AttributeName: GSI1SK
+          AttributeType: S
+        - AttributeName: GSI2PK
+          AttributeType: S
+        - AttributeName: GSI2SK
+          AttributeType: S
+      KeySchema:
+        - AttributeName: PK
+          KeyType: HASH
+        - AttributeName: SK
+          KeyType: RANGE
+      GlobalSecondaryIndexes:
+        # GSI1 — Participant profile (all leaderboards they are on)
+        - IndexName: GSI1
+          KeySchema:
+            - AttributeName: GSI1PK
+              KeyType: HASH
+            - AttributeName: GSI1SK
+              KeyType: RANGE
+          Projection:
+            ProjectionType: INCLUDE
+            NonKeyAttributes:
+              - leaderboardId
+              - score
+              - updatedAt
+        # GSI2 — Global list of leaderboards
+        - IndexName: GSI2
+          KeySchema:
+            - AttributeName: GSI2PK
+              KeyType: HASH
+            - AttributeName: GSI2SK
+              KeyType: RANGE
+          Projection:
+            ProjectionType: INCLUDE
+            NonKeyAttributes:
+              - leaderboardId
+              - name
+              - type
+              - createdAt
+      StreamSpecification:
+        StreamViewType: NEW_AND_OLD_IMAGES
+      PointInTimeRecoverySpecification:
+        PointInTimeRecoveryEnabled: true
+      SSESpecification:
+        SSEEnabled: true
+      Tags:
+        - Key: Project
+          Value: Leaderboard
+        - Key: Environment
+          Value: !Ref StageName
+
+  # ==========================================================================
+  # API Gateway
+  # ==========================================================================
+  LeaderboardApi:
+    Type: AWS::Serverless::Api
+    Properties:
+      StageName: !Ref StageName
+      Description: Infinite Leaderboard REST API
+      Cors:
+        AllowMethods: "'GET,POST,PUT,DELETE,OPTIONS'"
+        AllowHeaders: "'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token,x-admin-api-key,x-admin-email,x-admin-password'"
+        AllowOrigin: "'*'"
+      MethodSettings:
+        - ResourcePath: "/*"
+          HttpMethod: "*"
+          ThrottlingBurstLimit: 10000
+          ThrottlingRateLimit: 5000
+
+  # ==========================================================================
+  # Lambda Functions
+  # ==========================================================================
+
+  # --- Submit Score ---
+  SubmitScoreFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      Description: Submit/update a score on a leaderboard
+      CodeUri: src/
+      Handler: submit_score.app.lambda_handler
+      Timeout: 15
+      Policies:
+        - DynamoDBCrudPolicy:
+            TableName: !Ref LeaderboardTable
+        - Statement:
+            - Effect: Allow
+              Action:
+                - dynamodb:TransactWriteItems
+              Resource: !GetAtt LeaderboardTable.Arn
+      Events:
+        SubmitScore:
+          Type: Api
+          Properties:
+            RestApiId: !Ref LeaderboardApi
+            Path: /leaderboard/score
+            Method: POST
+
+  # --- Get Top N ---
+  GetTopNFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      Description: Get top N rankings (scatter-gather)
+      CodeUri: src/
+      Handler: get_top_n.app.lambda_handler
+      Policies:
+        - DynamoDBReadPolicy:
+            TableName: !Ref LeaderboardTable
+      Events:
+        GetTopN:
+          Type: Api
+          Properties:
+            RestApiId: !Ref LeaderboardApi
+            Path: /leaderboard/{leaderboardId}/top
+            Method: GET
+
+  # --- Get Rank ---
+  GetRankFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      Description: Get exact rank and score for a participant
+      CodeUri: src/
+      Handler: get_rank.app.lambda_handler
+      Policies:
+        - DynamoDBReadPolicy:
+            TableName: !Ref LeaderboardTable
+      Events:
+        GetRank:
+          Type: Api
+          Properties:
+            RestApiId: !Ref LeaderboardApi
+            Path: /leaderboard/{leaderboardId}/rank/{participantId}
+            Method: GET
+
+  # --- Get Neighbors ---
+  GetNeighborsFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      Description: Get records above/below a participant
+      CodeUri: src/
+      Handler: get_neighbors.app.lambda_handler
+      Policies:
+        - DynamoDBReadPolicy:
+            TableName: !Ref LeaderboardTable
+      Events:
+        GetNeighbors:
+          Type: Api
+          Properties:
+            RestApiId: !Ref LeaderboardApi
+            Path: /leaderboard/{leaderboardId}/neighbors/{participantId}
+            Method: GET
+
+  # --- Participant Profile ---
+  ParticipantProfileFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      Description: Get all leaderboards for a participant
+      CodeUri: src/
+      Handler: participant_profile.app.lambda_handler
+      Policies:
+        - DynamoDBReadPolicy:
+            TableName: !Ref LeaderboardTable
+      Events:
+        ParticipantProfile:
+          Type: Api
+          Properties:
+            RestApiId: !Ref LeaderboardApi
+            Path: /leaderboard/participant/{participantId}
+            Method: GET
+
+  # --- Create Leaderboard ---
+  CreateLeaderboardFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      Description: Create a new named leaderboard
+      CodeUri: src/
+      Handler: create_leaderboard.app.lambda_handler
+      Policies:
+        - DynamoDBCrudPolicy:
+            TableName: !Ref LeaderboardTable
+      Events:
+        CreateLeaderboard:
+          Type: Api
+          Properties:
+            RestApiId: !Ref LeaderboardApi
+            Path: /leaderboard/create
+            Method: POST
+
+  # --- List Leaderboards ---
+  ListLeaderboardsFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      Description: List all leaderboards
+      CodeUri: src/
+      Handler: list_leaderboards.app.lambda_handler
+      Policies:
+        - DynamoDBReadPolicy:
+            TableName: !Ref LeaderboardTable
+      Events:
+        ListLeaderboards:
+          Type: Api
+          Properties:
+            RestApiId: !Ref LeaderboardApi
+            Path: /leaderboard/list
+            Method: GET
+
+  # --- Leaderboard Stats ---
+  LeaderboardStatsFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      Description: Stats for a leaderboard
+      CodeUri: src/
+      Handler: leaderboard_stats.app.lambda_handler
+      Policies:
+        - DynamoDBReadPolicy:
+            TableName: !Ref LeaderboardTable
+      Events:
+        LeaderboardStats:
+          Type: Api
+          Properties:
+            RestApiId: !Ref LeaderboardApi
+            Path: /leaderboard/{leaderboardId}/stats
+            Method: GET
+
+# ==========================================================================
+# Outputs
+# ==========================================================================
+Outputs:
+  LeaderboardApiUrl:
+    Description: Leaderboard API Gateway endpoint URL
+    Value: !Sub "https://${LeaderboardApi}.execute-api.${AWS::Region}.${AWS::URLSuffix}/${StageName}/"
+
+  LeaderboardTableName:
+    Description: DynamoDB table name
+    Value: !Ref LeaderboardTable
+
+  LeaderboardTableArn:
+    Description: DynamoDB table ARN
+    Value: !GetAtt LeaderboardTable.Arn

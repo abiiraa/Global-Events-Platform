@@ -1,0 +1,84 @@
+# ============================================================
+# Claude Code / IDE
+# ============================================================
+.claude/
+.playwright-mcp/
+.vscode/
+.idea/
+*.iml
+
+# ============================================================
+# Playwright
+# ============================================================
+/playwright-report/
+/test-results/
+/playwright/.cache/
+
+# ============================================================
+# Frontend (Node / Vite)
+# ============================================================
+frontend/node_modules/
+frontend/dist/
+frontend/.env
+frontend/.env.local
+frontend/.env.*.local
+
+# ============================================================
+# Backend (Python / SAM)
+# ============================================================
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+*.egg-info/
+.eggs/
+.venv/
+venv/
+env/
+.env
+.env.local
+.env.*.local
+.pytest_cache/
+.mypy_cache/
+.coverage
+htmlcov/
+*.log
+
+# SAM build artefacts
+backend/.aws-sam/
+backend/modules/waiting-room/.aws-sam/
+backend/modules/seat-purchase/.aws-sam/
+
+# ============================================================
+# AWS credentials / secrets (never commit)
+# ============================================================
+*.pem
+*.key
+.aws/
+aws-exports.js
+samconfig.local.toml
+
+# ============================================================
+# OS
+# ============================================================
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# ============================================================
+# Misc
+# ============================================================
+*.zip
+*.tar.gz
+*.bak
+*.swp
+*.tmp
+
+# MARKDOWNS
+CLAUDE.MD
+SUMMARY.MD
+RECOMMENDATIONS.MD
+PROJECT_AUDIT.MD
+
+/SUMMARY.md

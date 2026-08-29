@@ -1,0 +1,348 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: >
+  Stadium Concessions Express — AWS Builder Center DynamoDB Data Modeling Challenge Phase 3.
+  Routes halftime order spikes to stands and surfaces oldest pending work first.
+
+Globals:
+  Function:
+    Runtime: python3.14
+    Timeout: 30
+    MemorySize: 256
+    Architectures:
+      - x86_64
+    Environment:
+      Variables:
+        TABLE_NAME:
+          Ref: ConcessionsTable
+        LOG_LEVEL: INFO
+        ADMIN_API_KEY:
+          Ref: AdminApiKey
+        ADMIN_EMAIL:
+          Ref: AdminEmail
+        ADMIN_PASSWORD:
+          Ref: AdminPassword
+        ORDER_TTL_HOURS:
+          Ref: OrderTTLHours
+    LoggingConfig:
+      LogFormat: JSON
+
+Parameters:
+  StageName:
+    Type: String
+    Default: Prod
+    Description: API Gateway deployment stage name
+  AdminApiKey:
+    Type: String
+    NoEcho: true
+    Default: ""
+    Description: API key for admin operations
+  AdminEmail:
+    Type: String
+    Default: admin@example.com
+    Description: Admin login email
+  AdminPassword:
+    Type: String
+    NoEcho: true
+    Default: changeme
+    Description: Admin login password
+  EventBridgeBusName:
+    Type: String
+    Default: GlobalSportingEventsBus
+    Description: EventBridge bus name for cross-module events
+  OrderTTLHours:
+    Type: Number
+    Default: 2
+    Description: Order TTL in hours for DynamoDB TTL cleanup
+
+Resources:
+  # ==========================================================================
+  # DynamoDB Table — Single Table Design for Concessions
+  # ==========================================================================
+  ConcessionsTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: ConcessionsTable
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: PK
+          AttributeType: S
+        - AttributeName: SK
+          AttributeType: S
+        - AttributeName: GSI1PK
+          AttributeType: S
+        - AttributeName: GSI1SK
+          AttributeType: S
+        - AttributeName: GSI2PK
+          AttributeType: S
+        - AttributeName: GSI2SK
+          AttributeType: S
+        - AttributeName: GSI3PK
+          AttributeType: S
+        - AttributeName: GSI3SK
+          AttributeType: S
+      KeySchema:
+        - AttributeName: PK
+          KeyType: HASH
+        - AttributeName: SK
+          KeyType: RANGE
+      GlobalSecondaryIndexes:
+        # GSI1 — Stand operator queue: pending orders by stand, sorted by wait time
+        - IndexName: GSI1
+          KeySchema:
+            - AttributeName: GSI1PK
+              KeyType: HASH
+            - AttributeName: GSI1SK
+              KeyType: RANGE
+          Projection:
+            ProjectionType: INCLUDE
+            NonKeyAttributes:
+              - orderId
+              - fanId
+              - section
+              - items
+              - totalPrice
+              - status
+              - isVip
+              - orderTime
+              - standId
+        # GSI2 — Fan order lookup by event
+        - IndexName: GSI2
+          KeySchema:
+            - AttributeName: GSI2PK
+              KeyType: HASH
+            - AttributeName: GSI2SK
+              KeyType: RANGE
+          Projection:
+            ProjectionType: INCLUDE
+            NonKeyAttributes:
+              - orderId
+              - standId
+              - standName
+              - totalPrice
+              - status
+              - orderTime
+        # GSI3 — Event-level analytics + stand listing
+        - IndexName: GSI3
+          KeySchema:
+            - AttributeName: GSI3PK
+              KeyType: HASH
+            - AttributeName: GSI3SK
+              KeyType: RANGE
+          Projection:
+            ProjectionType: INCLUDE
+            NonKeyAttributes:
+              - orderId
+              - standId
+              - standName
+              - fanId
+              - items
+              - totalPrice
+              - status
+              - orderTime
+              - coveredSections
+              - sectionDistance
+              - menuItemCount
+              - entityType
+      TimeToLiveSpecification:
+        AttributeName: ttl
+        Enabled: true
+      StreamSpecification:
+        StreamViewType: NEW_AND_OLD_IMAGES
+      PointInTimeRecoverySpecification:
+        PointInTimeRecoveryEnabled: true
+      SSESpecification:
+        SSEEnabled: true
+      Tags:
+        - Key: Project
+          Value: Concessions
+        - Key: Environment
+          Value: !Ref StageName
+
+  # ==========================================================================
+  # API Gateway
+  # ==========================================================================
+  ConcessionsApi:
+    Type: AWS::Serverless::Api
+    Properties:
+      StageName: !Ref StageName
+      Description: Stadium Concessions Express REST API
+      Cors:
+        AllowMethods: "'GET,POST,PUT,DELETE,OPTIONS'"
+        AllowHeaders: "'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token,x-admin-api-key,x-admin-email,x-admin-password'"
+        AllowOrigin: "'*'"
+      MethodSettings:
+        - ResourcePath: "/*"
+          HttpMethod: "*"
+          ThrottlingBurstLimit: 10000
+          ThrottlingRateLimit: 5000
+
+  # ==========================================================================
+  # Lambda Functions
+  # ==========================================================================
+
+  # --- Place Order ---
+  PlaceOrderFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      Description: Fan places a food/drink order from their seat
+      CodeUri: src/
+      Handler: place_order.app.lambda_handler
+      Timeout: 15
+      Policies:
+        - DynamoDBCrudPolicy:
+            TableName: !Ref ConcessionsTable
+      Events:
+        PlaceOrder:
+          Type: Api
+          Properties:
+            RestApiId: !Ref ConcessionsApi
+            Path: /concessions/order
+            Method: POST
+
+  # --- Order Status ---
+  OrderStatusFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      Description: Get the status of a concession order
+      CodeUri: src/
+      Handler: order_status.app.lambda_handler
+      Policies:
+        - DynamoDBReadPolicy:
+            TableName: !Ref ConcessionsTable
+      Events:
+        OrderStatus:
+          Type: Api
+          Properties:
+            RestApiId: !Ref ConcessionsApi
+            Path: /concessions/order/{orderId}
+            Method: GET
+
+  # --- Fan Orders ---
+  FanOrdersFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      Description: Get all orders for a fan at an event
+      CodeUri: src/
+      Handler: fan_orders.app.lambda_handler
+      Policies:
+        - DynamoDBReadPolicy:
+            TableName: !Ref ConcessionsTable
+      Events:
+        FanOrders:
+          Type: Api
+          Properties:
+            RestApiId: !Ref ConcessionsApi
+            Path: /concessions/orders/{fanId}
+            Method: GET
+
+  # --- Stand Queue ---
+  StandQueueFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      Description: Stand operator view of pending orders sorted by wait time
+      CodeUri: src/
+      Handler: stand_queue.app.lambda_handler
+      Policies:
+        - DynamoDBReadPolicy:
+            TableName: !Ref ConcessionsTable
+      Events:
+        StandQueue:
+          Type: Api
+          Properties:
+            RestApiId: !Ref ConcessionsApi
+            Path: /concessions/stand/{standId}/queue
+            Method: GET
+
+  # --- Update Order Status ---
+  UpdateOrderStatusFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      Description: Transition order status (PENDING→PREPARING→READY→PICKED_UP)
+      CodeUri: src/
+      Handler: update_order_status.app.lambda_handler
+      Policies:
+        - DynamoDBCrudPolicy:
+            TableName: !Ref ConcessionsTable
+      Events:
+        UpdateOrderStatus:
+          Type: Api
+          Properties:
+            RestApiId: !Ref ConcessionsApi
+            Path: /concessions/order/{orderId}/status
+            Method: PUT
+
+  # --- Admin Setup Stands ---
+  AdminSetupStandsFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      Description: Admin seeds concession stands with menu items and section coverage
+      CodeUri: src/
+      Handler: admin_setup_stands.app.lambda_handler
+      Timeout: 120
+      Policies:
+        - DynamoDBCrudPolicy:
+            TableName: !Ref ConcessionsTable
+      Events:
+        AdminSetupStands:
+          Type: Api
+          Properties:
+            RestApiId: !Ref ConcessionsApi
+            Path: /concessions/admin/stands/setup
+            Method: POST
+
+  # --- Stand Stats ---
+  StandStatsFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      Description: Throughput stats for a concession stand
+      CodeUri: src/
+      Handler: stand_stats.app.lambda_handler
+      Policies:
+        - DynamoDBReadPolicy:
+            TableName: !Ref ConcessionsTable
+      Events:
+        StandStats:
+          Type: Api
+          Properties:
+            RestApiId: !Ref ConcessionsApi
+            Path: /concessions/stand/{standId}/stats
+            Method: GET
+
+  # --- Event Concession Stats ---
+  EventConcessionStatsFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      Description: Event-wide concession analytics for admin dashboard
+      CodeUri: src/
+      Handler: event_concession_stats.app.lambda_handler
+      Policies:
+        - DynamoDBReadPolicy:
+            TableName: !Ref ConcessionsTable
+      Events:
+        EventConcessionStats:
+          Type: Api
+          Properties:
+            RestApiId: !Ref ConcessionsApi
+            Path: /concessions/admin/stats/{eventId}
+            Method: GET
+
+# ==========================================================================
+# Outputs
+# ==========================================================================
+Outputs:
+  ConcessionsApiUrl:
+    Description: Concessions API Gateway endpoint URL
+    Value: !Sub "https://${ConcessionsApi}.execute-api.${AWS::Region}.${AWS::URLSuffix}/${StageName}/"
+
+  ConcessionsTableName:
+    Description: DynamoDB table name
+    Value: !Ref ConcessionsTable
+
+  ConcessionsTableArn:
+    Description: DynamoDB table ARN
+    Value: !GetAtt ConcessionsTable.Arn
+
+  ConcessionsStreamArn:
+    Description: DynamoDB Streams ARN
+    Value: !GetAtt ConcessionsTable.StreamArn

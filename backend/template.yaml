@@ -1,0 +1,195 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: >
+  Global Event Platform — Root Stack.
+  Deploys all four modules as nested SAM stacks. Each module is independently
+  deployable but wired together here for a single sam deploy.
+
+Parameters:
+  StageName:
+    Type: String
+    Default: Prod
+    Description: API Gateway deployment stage shared across all modules
+  AdminEmail:
+    Type: String
+    Default: admin@example.com
+    Description: Admin login email
+  AdminPassword:
+    Type: String
+    NoEcho: true
+    Default: changeme
+    Description: Admin login password. Use Secrets Manager in production.
+  AdminApiKey:
+    Type: String
+    NoEcho: true
+    Default: ""
+    Description: API key for admin operations
+  EventBridgeBusName:
+    Type: String
+    Default: GlobalSportingEventsBus
+    Description: Name of the EventBridge custom bus used for cross-module events
+
+Resources:
+  # ==========================================================================
+  # EventBridge Custom Bus — cross-module event transport
+  # ==========================================================================
+  GlobalSportingEventsBus:
+    Type: AWS::Events::EventBus
+    Properties:
+      Name: !Ref EventBridgeBusName
+
+  # ==========================================================================
+  # Cognito User Pool — Authentication and Profiles
+  # ==========================================================================
+  PlatformUserPool:
+    Type: AWS::Cognito::UserPool
+    Properties:
+      UserPoolName: !Sub "${AWS::StackName}-UserPool"
+      AutoVerifiedAttributes:
+        - email
+      AliasAttributes:
+        - email
+        - preferred_username
+      Policies:
+        PasswordPolicy:
+          MinimumLength: 8
+          RequireLowercase: true
+          RequireNumbers: true
+          RequireSymbols: false
+          RequireUppercase: true
+      Schema:
+        - Name: preferred_username
+          AttributeDataType: String
+          Mutable: true
+          Required: true
+        - Name: email
+          AttributeDataType: String
+          Mutable: true
+          Required: true
+        - Name: name
+          AttributeDataType: String
+          Mutable: true
+          Required: true
+        - Name: phone_number
+          AttributeDataType: String
+          Mutable: true
+          Required: false
+        - Name: address
+          AttributeDataType: String
+          Mutable: true
+          Required: false
+      LambdaConfig:
+        CustomMessage: !GetAtt CustomMessageFunction.Arn
+
+  CustomMessageFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      Description: Sends custom HTML verification emails
+      CodeUri: src/custom_message/
+      Handler: app.lambda_handler
+      Runtime: python3.14
+      Timeout: 5
+      MemorySize: 128
+
+  CustomMessageInvocationPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      Action: lambda:InvokeFunction
+      FunctionName: !GetAtt CustomMessageFunction.Arn
+      Principal: cognito-idp.amazonaws.com
+      SourceArn: !GetAtt PlatformUserPool.Arn
+
+  PlatformUserPoolClient:
+    Type: AWS::Cognito::UserPoolClient
+    Properties:
+      ClientName: !Sub "${AWS::StackName}-WebClient"
+      UserPoolId: !Ref PlatformUserPool
+      GenerateSecret: false
+      ExplicitAuthFlows:
+        - ALLOW_USER_SRP_AUTH
+        - ALLOW_REFRESH_TOKEN_AUTH
+        - ALLOW_USER_PASSWORD_AUTH
+
+  # ==========================================================================
+  # Module: Virtual Waiting Room (Challenge 1)
+  # ==========================================================================
+  WaitingRoomStack:
+    Type: AWS::Serverless::Application
+    Properties:
+      Location: modules/waiting-room/template.yaml
+      Parameters:
+        StageName: !Ref StageName
+        AdminEmail: !Ref AdminEmail
+        AdminPassword: !Ref AdminPassword
+        AdminApiKey: !Ref AdminApiKey
+
+  # ==========================================================================
+  # Module: Fair Seat Purchase (Challenge 2)
+  # ==========================================================================
+  SeatPurchaseStack:
+    Type: AWS::Serverless::Application
+    Properties:
+      Location: modules/seat-purchase/template.yaml
+      Parameters:
+        StageName: !Ref StageName
+        AdminEmail: !Ref AdminEmail
+        AdminPassword: !Ref AdminPassword
+        AdminApiKey: !Ref AdminApiKey
+        WaitingRoomApiUrl: !GetAtt WaitingRoomStack.Outputs.WaitingRoomApiUrl
+
+  # ==========================================================================
+  # Module: Stadium Concessions Express (Challenge 3)
+  # ==========================================================================
+  ConcessionsStack:
+    Type: AWS::Serverless::Application
+    Properties:
+      Location: modules/concessions/template.yaml
+      Parameters:
+        StageName: !Ref StageName
+        AdminEmail: !Ref AdminEmail
+        AdminPassword: !Ref AdminPassword
+        AdminApiKey: !Ref AdminApiKey
+        EventBridgeBusName: !Ref EventBridgeBusName
+
+  # ==========================================================================
+  # Module: Infinite Leaderboard (Challenge 4)
+  # ==========================================================================
+  LeaderboardStack:
+    Type: AWS::Serverless::Application
+    Properties:
+      Location: modules/leaderboard/template.yaml
+      Parameters:
+        StageName: !Ref StageName
+        AdminEmail: !Ref AdminEmail
+        AdminPassword: !Ref AdminPassword
+        AdminApiKey: !Ref AdminApiKey
+        EventBridgeBusName: !Ref EventBridgeBusName
+
+Outputs:
+  WaitingRoomApiUrl:
+    Description: Waiting Room API Gateway URL
+    Value: !GetAtt WaitingRoomStack.Outputs.WaitingRoomApiUrl
+
+  SeatPurchaseApiUrl:
+    Description: Seat Purchase API Gateway URL
+    Value: !GetAtt SeatPurchaseStack.Outputs.SeatPurchaseApiUrl
+
+  ConcessionsApiUrl:
+    Description: Concessions API Gateway URL
+    Value: !GetAtt ConcessionsStack.Outputs.ConcessionsApiUrl
+
+  LeaderboardApiUrl:
+    Description: Leaderboard API Gateway URL
+    Value: !GetAtt LeaderboardStack.Outputs.LeaderboardApiUrl
+
+  EventBridgeBusArn:
+    Description: EventBridge custom bus ARN for cross-module events
+    Value: !GetAtt GlobalSportingEventsBus.Arn
+
+  UserPoolId:
+    Description: Cognito User Pool ID
+    Value: !Ref PlatformUserPool
+
+  UserPoolClientId:
+    Description: Cognito User Pool Client ID
+    Value: !Ref PlatformUserPoolClient

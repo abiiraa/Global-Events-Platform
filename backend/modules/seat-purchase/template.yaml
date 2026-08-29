@@ -1,0 +1,356 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: >
+  Fair Seat Purchase — AWS Builder Center DynamoDB Data Modeling Challenge Phase 2.
+  Guarantees every seat is sold exactly once via conditional writes and transactions.
+
+Globals:
+  Function:
+    Runtime: python3.14
+    Timeout: 30
+    MemorySize: 256
+    Architectures:
+      - x86_64
+    Environment:
+      Variables:
+        TABLE_NAME:
+          Ref: SeatPurchaseTable
+        LOG_LEVEL: INFO
+        ADMIN_API_KEY:
+          Ref: AdminApiKey
+        ADMIN_EMAIL:
+          Ref: AdminEmail
+        ADMIN_PASSWORD:
+          Ref: AdminPassword
+        HOLD_TTL_MINUTES:
+          Ref: HoldTTLMinutes
+        WAITING_ROOM_API_URL:
+          Ref: WaitingRoomApiUrl
+    LoggingConfig:
+      LogFormat: JSON
+
+Parameters:
+  StageName:
+    Type: String
+    Default: Prod
+    Description: API Gateway deployment stage name
+  HoldTTLMinutes:
+    Type: Number
+    Default: 10
+    Description: Seat hold duration in minutes before expiry
+  AdminApiKey:
+    Type: String
+    NoEcho: true
+    Default: ""
+    Description: API key for admin operations
+  AdminEmail:
+    Type: String
+    Default: admin@example.com
+    Description: Admin login email
+  AdminPassword:
+    Type: String
+    NoEcho: true
+    Default: changeme
+    Description: Admin login password
+  WaitingRoomApiUrl:
+    Type: String
+    Default: ""
+    Description: Base URL of the Waiting Room API for token validation
+  EventBridgeBusName:
+    Type: String
+    Default: GlobalSportingEventsBus
+    Description: EventBridge bus name for cross-module events
+
+Resources:
+  # ==========================================================================
+  # DynamoDB Table — Single Table Design for Seat Purchase
+  # ==========================================================================
+  SeatPurchaseTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: SeatPurchaseTable
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: PK
+          AttributeType: S
+        - AttributeName: SK
+          AttributeType: S
+        - AttributeName: GSI1PK
+          AttributeType: S
+        - AttributeName: GSI1SK
+          AttributeType: S
+        - AttributeName: GSI2PK
+          AttributeType: S
+        - AttributeName: GSI2SK
+          AttributeType: S
+      KeySchema:
+        - AttributeName: PK
+          KeyType: HASH
+        - AttributeName: SK
+          KeyType: RANGE
+      GlobalSecondaryIndexes:
+        # GSI1 — Fan's tickets across events
+        - IndexName: GSI1
+          KeySchema:
+            - AttributeName: GSI1PK
+              KeyType: HASH
+            - AttributeName: GSI1SK
+              KeyType: RANGE
+          Projection:
+            ProjectionType: INCLUDE
+            NonKeyAttributes:
+              - eventId
+              - sectionId
+              - seatLabel
+              - tier
+              - price
+              - purchasedAt
+              - status
+              - fanId
+        # GSI2 — Admin inventory view by event + status
+        - IndexName: GSI2
+          KeySchema:
+            - AttributeName: GSI2PK
+              KeyType: HASH
+            - AttributeName: GSI2SK
+              KeyType: RANGE
+          Projection:
+            ProjectionType: INCLUDE
+            NonKeyAttributes:
+              - sectionId
+              - seatLabel
+              - tier
+              - price
+              - status
+              - holdExpiresAt
+              - heldByFanId
+      TimeToLiveSpecification:
+        AttributeName: ttl
+        Enabled: true
+      StreamSpecification:
+        StreamViewType: NEW_AND_OLD_IMAGES
+      PointInTimeRecoverySpecification:
+        PointInTimeRecoveryEnabled: true
+      SSESpecification:
+        SSEEnabled: true
+      Tags:
+        - Key: Project
+          Value: SeatPurchase
+        - Key: Environment
+          Value: !Ref StageName
+
+  # ==========================================================================
+  # API Gateway
+  # ==========================================================================
+  SeatPurchaseApi:
+    Type: AWS::Serverless::Api
+    Properties:
+      StageName: !Ref StageName
+      Description: Fair Seat Purchase REST API
+      Cors:
+        AllowMethods: "'GET,POST,DELETE,OPTIONS'"
+        AllowHeaders: "'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token,x-admin-api-key,x-admin-email,x-admin-password'"
+        AllowOrigin: "'*'"
+      MethodSettings:
+        - ResourcePath: "/*"
+          HttpMethod: "*"
+          ThrottlingBurstLimit: 5000
+          ThrottlingRateLimit: 2000
+
+  # ==========================================================================
+  # Lambda Functions
+  # ==========================================================================
+
+  # --- Create Purchase Session ---
+  CreateSessionFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      Description: Validates waiting-room token and creates a purchase session
+      CodeUri: src/
+      Handler: create_session.app.lambda_handler
+      Timeout: 15
+      Policies:
+        - DynamoDBCrudPolicy:
+            TableName: !Ref SeatPurchaseTable
+      Events:
+        CreateSession:
+          Type: Api
+          Properties:
+            RestApiId: !Ref SeatPurchaseApi
+            Path: /purchase/session
+            Method: POST
+
+  # --- Seat Map ---
+  SeatMapFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      Description: Returns seat availability for a section
+      CodeUri: src/
+      Handler: seat_map.app.lambda_handler
+      Policies:
+        - DynamoDBReadPolicy:
+            TableName: !Ref SeatPurchaseTable
+      Events:
+        SeatMap:
+          Type: Api
+          Properties:
+            RestApiId: !Ref SeatPurchaseApi
+            Path: /purchase/seats/{eventId}/{sectionId}
+            Method: GET
+
+  # --- Hold Seat ---
+  HoldSeatFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      Description: Places a conditional hold on a seat (AVAILABLE -> HELD)
+      CodeUri: src/
+      Handler: hold_seat.app.lambda_handler
+      Policies:
+        - DynamoDBCrudPolicy:
+            TableName: !Ref SeatPurchaseTable
+      Events:
+        HoldSeat:
+          Type: Api
+          Properties:
+            RestApiId: !Ref SeatPurchaseApi
+            Path: /purchase/hold
+            Method: POST
+
+  # --- Release Seat ---
+  ReleaseSeatFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      Description: Releases a held seat back to AVAILABLE
+      CodeUri: src/
+      Handler: release_seat.app.lambda_handler
+      Policies:
+        - DynamoDBCrudPolicy:
+            TableName: !Ref SeatPurchaseTable
+      Events:
+        ReleaseSeat:
+          Type: Api
+          Properties:
+            RestApiId: !Ref SeatPurchaseApi
+            Path: /purchase/hold/{holdId}
+            Method: DELETE
+
+  # --- Purchase (Confirm) Seat ---
+  PurchaseSeatFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      Description: Confirms purchase via TransactWriteItems (HELD -> SOLD + ticket)
+      CodeUri: src/
+      Handler: purchase_seat.app.lambda_handler
+      Policies:
+        - DynamoDBCrudPolicy:
+            TableName: !Ref SeatPurchaseTable
+        - Statement:
+            - Effect: Allow
+              Action:
+                - dynamodb:TransactWriteItems
+              Resource: !GetAtt SeatPurchaseTable.Arn
+      Events:
+        PurchaseSeat:
+          Type: Api
+          Properties:
+            RestApiId: !Ref SeatPurchaseApi
+            Path: /purchase/confirm
+            Method: POST
+
+  # --- Fan Tickets ---
+  FanTicketsFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      Description: Returns all tickets for a fan
+      CodeUri: src/
+      Handler: fan_tickets.app.lambda_handler
+      Policies:
+        - DynamoDBReadPolicy:
+            TableName: !Ref SeatPurchaseTable
+      Events:
+        FanTickets:
+          Type: Api
+          Properties:
+            RestApiId: !Ref SeatPurchaseApi
+            Path: /purchase/tickets/{fanId}
+            Method: GET
+
+  # --- Ticket Detail ---
+  TicketDetailFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      Description: Returns full details for a single ticket
+      CodeUri: src/
+      Handler: ticket_detail.app.lambda_handler
+      Policies:
+        - DynamoDBReadPolicy:
+            TableName: !Ref SeatPurchaseTable
+      Events:
+        TicketDetail:
+          Type: Api
+          Properties:
+            RestApiId: !Ref SeatPurchaseApi
+            Path: /purchase/ticket/{ticketId}
+            Method: GET
+
+  # --- Admin Inventory ---
+  AdminInventoryFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      Description: Admin view of seat inventory by event
+      CodeUri: src/
+      Handler: admin_inventory.app.lambda_handler
+      Policies:
+        - DynamoDBReadPolicy:
+            TableName: !Ref SeatPurchaseTable
+      Events:
+        AdminInventory:
+          Type: Api
+          Properties:
+            RestApiId: !Ref SeatPurchaseApi
+            Path: /admin/inventory/{eventId}
+            Method: GET
+
+  # --- Admin Setup Venue ---
+  AdminSetupVenueFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      Description: Seeds venue sections and seats for an event
+      CodeUri: src/
+      Handler: admin_setup_venue.app.lambda_handler
+      Timeout: 120
+      Policies:
+        - DynamoDBCrudPolicy:
+            TableName: !Ref SeatPurchaseTable
+        - Statement:
+            - Effect: Allow
+              Action:
+                - dynamodb:BatchWriteItem
+              Resource: !GetAtt SeatPurchaseTable.Arn
+      Events:
+        AdminSetupVenue:
+          Type: Api
+          Properties:
+            RestApiId: !Ref SeatPurchaseApi
+            Path: /admin/venue/setup
+            Method: POST
+
+# ==========================================================================
+# Outputs
+# ==========================================================================
+Outputs:
+  SeatPurchaseApiUrl:
+    Description: Seat Purchase API Gateway endpoint URL
+    Value: !Sub "https://${SeatPurchaseApi}.execute-api.${AWS::Region}.${AWS::URLSuffix}/${StageName}/"
+
+  SeatPurchaseTableName:
+    Description: DynamoDB table name
+    Value: !Ref SeatPurchaseTable
+
+  SeatPurchaseTableArn:
+    Description: DynamoDB table ARN
+    Value: !GetAtt SeatPurchaseTable.Arn
+
+  SeatPurchaseStreamArn:
+    Description: DynamoDB Streams ARN
+    Value: !GetAtt SeatPurchaseTable.StreamArn
