@@ -6,6 +6,7 @@ import { useAuth } from '../context/AuthContext'
 export default function Login() {
   const { isAuthenticated, loading } = useAuth()
   const navigate = useNavigate()
+  const googleSignInEnabled = Boolean(import.meta.env.VITE_COGNITO_OAUTH_DOMAIN)
   
   // States
   const [usernameOrEmail, setUsernameOrEmail] = useState('')
@@ -43,6 +44,14 @@ export default function Login() {
     } finally {
       setIsSubmitting(false)
     }
+  }
+
+  function handleGoogleSignIn() {
+    if (!googleSignInEnabled) {
+      setError('Google sign-in is not configured. Add the Cognito OAuth domain and Google identity provider first.')
+      return
+    }
+    signInWithRedirect({ provider: 'Google' })
   }
 
   return (
@@ -148,8 +157,9 @@ export default function Login() {
 
             <button
               type="button"
-              onClick={() => signInWithRedirect({ provider: 'Google' })}
-              className="w-full py-3.5 bg-white text-gray-900 rounded-xl font-bold text-sm flex justify-center items-center gap-2 hover:bg-gray-100 transition-all shadow-lg"
+              onClick={handleGoogleSignIn}
+              disabled={!googleSignInEnabled}
+              className="w-full py-3.5 bg-white text-gray-900 rounded-xl font-bold text-sm flex justify-center items-center gap-2 hover:bg-gray-100 transition-all shadow-lg disabled:opacity-50 disabled:cursor-not-allowed"
             >
               <svg className="w-5 h-5" viewBox="0 0 24 24">
                 <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4"/>

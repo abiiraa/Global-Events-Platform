@@ -7,6 +7,7 @@ export default function Signup() {
   const { isAuthenticated, loading } = useAuth()
   const navigate = useNavigate()
   const location = useLocation()
+  const googleSignInEnabled = Boolean(import.meta.env.VITE_COGNITO_OAUTH_DOMAIN)
   
   const [step, setStep] = useState<'signup' | 'confirm'>(location.state?.step || 'signup')
   const [email, setEmail] = useState(location.state?.email || '')
@@ -42,6 +43,11 @@ export default function Signup() {
       return
     }
 
+    if (username.includes('@')) {
+      setError('Username cannot be an email address')
+      return
+    }
+
     setIsSubmitting(true)
     try {
       const attributes: Record<string, string> = {
@@ -51,7 +57,7 @@ export default function Signup() {
       }
 
       const { isSignUpComplete, nextStep } = await signUp({
-        username: email,
+        username,
         password,
         options: {
           userAttributes: attributes
@@ -82,7 +88,7 @@ export default function Signup() {
     setIsSubmitting(true)
     try {
       const { isSignUpComplete } = await confirmSignUp({
-        username: email,
+        username: username || email,
         confirmationCode: code
       })
 
@@ -94,6 +100,14 @@ export default function Signup() {
     } finally {
       setIsSubmitting(false)
     }
+  }
+
+  function handleGoogleSignIn() {
+    if (!googleSignInEnabled) {
+      setError('Google sign-in is not configured. Add the Cognito OAuth domain and Google identity provider first.')
+      return
+    }
+    signInWithRedirect({ provider: 'Google' })
   }
 
   return (
@@ -252,8 +266,9 @@ export default function Signup() {
 
               <button
                 type="button"
-                onClick={() => signInWithRedirect({ provider: 'Google' })}
-                className="w-full py-3.5 bg-white text-gray-900 rounded-xl font-bold text-sm flex justify-center items-center gap-2 hover:bg-gray-100 transition-all shadow-lg"
+                onClick={handleGoogleSignIn}
+                disabled={!googleSignInEnabled}
+                className="w-full py-3.5 bg-white text-gray-900 rounded-xl font-bold text-sm flex justify-center items-center gap-2 hover:bg-gray-100 transition-all shadow-lg disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 <svg className="w-5 h-5" viewBox="0 0 24 24">
                   <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4"/>

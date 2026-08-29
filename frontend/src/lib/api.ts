@@ -18,7 +18,7 @@ async function apiFetch<T>(url: string, options?: RequestInit): Promise<T> {
   })
   if (!res.ok) {
     const err = await res.json().catch(() => ({ message: res.statusText }))
-    throw new Error(err.message ?? `HTTP ${res.status}`)
+    throw new Error(err.error?.message ?? err.message ?? `HTTP ${res.status}`)
   }
   if (res.status === 204 || res.headers.get('content-length') === '0') {
     return undefined as T
@@ -30,6 +30,7 @@ async function apiFetch<T>(url: string, options?: RequestInit): Promise<T> {
 
 function adminHeaders() {
   return {
+    'x-admin-api-key': import.meta.env.VITE_ADMIN_API_KEY ?? '',
     'x-admin-email': import.meta.env.VITE_ADMIN_EMAIL ?? '',
     'x-admin-password': import.meta.env.VITE_ADMIN_PASSWORD ?? '',
   }
@@ -336,4 +337,3 @@ export async function apiCreateLeaderboard(leaderboardId: string, name: string):
     body: JSON.stringify({ leaderboardId, name, type: 'FAN_ENGAGEMENT' })
   })
 }
-

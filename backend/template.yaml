@@ -28,6 +28,33 @@ Parameters:
     Type: String
     Default: GlobalSportingEventsBus
     Description: Name of the EventBridge custom bus used for cross-module events
+  CognitoDomainPrefix:
+    Type: String
+    Default: ""
+    Description: Optional Cognito Hosted UI domain prefix. Required for Google sign-in.
+  GoogleClientId:
+    Type: String
+    Default: ""
+    Description: Optional Google OAuth client ID for Cognito federation.
+  GoogleClientSecret:
+    Type: String
+    NoEcho: true
+    Default: ""
+    Description: Optional Google OAuth client secret for Cognito federation.
+  OAuthCallbackUrls:
+    Type: CommaDelimitedList
+    Default: "http://localhost:5173/"
+    Description: Comma-delimited callback URLs for Cognito Hosted UI.
+  OAuthLogoutUrls:
+    Type: CommaDelimitedList
+    Default: "http://localhost:5173/"
+    Description: Comma-delimited logout URLs for Cognito Hosted UI.
+
+Conditions:
+  EnableGoogleOAuth: !And
+    - !Not [!Equals [!Ref CognitoDomainPrefix, ""]]
+    - !Not [!Equals [!Ref GoogleClientId, ""]]
+    - !Not [!Equals [!Ref GoogleClientSecret, ""]]
 
 Resources:
   # ==========================================================================
@@ -109,6 +136,47 @@ Resources:
         - ALLOW_USER_SRP_AUTH
         - ALLOW_REFRESH_TOKEN_AUTH
         - ALLOW_USER_PASSWORD_AUTH
+      SupportedIdentityProviders: !If
+        - EnableGoogleOAuth
+        - - COGNITO
+          - Google
+        - - COGNITO
+      AllowedOAuthFlowsUserPoolClient: !If [EnableGoogleOAuth, true, !Ref AWS::NoValue]
+      AllowedOAuthFlows: !If
+        - EnableGoogleOAuth
+        - - code
+        - !Ref AWS::NoValue
+      AllowedOAuthScopes: !If
+        - EnableGoogleOAuth
+        - - email
+          - openid
+          - profile
+        - !Ref AWS::NoValue
+      CallbackURLs: !If [EnableGoogleOAuth, !Ref OAuthCallbackUrls, !Ref AWS::NoValue]
+      LogoutURLs: !If [EnableGoogleOAuth, !Ref OAuthLogoutUrls, !Ref AWS::NoValue]
+
+  PlatformGoogleIdentityProvider:
+    Type: AWS::Cognito::UserPoolIdentityProvider
+    Condition: EnableGoogleOAuth
+    Properties:
+      UserPoolId: !Ref PlatformUserPool
+      ProviderName: Google
+      ProviderType: Google
+      ProviderDetails:
+        client_id: !Ref GoogleClientId
+        client_secret: !Ref GoogleClientSecret
+        authorize_scopes: "email openid profile"
+      AttributeMapping:
+        email: email
+        name: name
+        preferred_username: sub
+
+  PlatformUserPoolDomain:
+    Type: AWS::Cognito::UserPoolDomain
+    Condition: EnableGoogleOAuth
+    Properties:
+      Domain: !Ref CognitoDomainPrefix
+      UserPoolId: !Ref PlatformUserPool
 
   # ==========================================================================
   # Module: Virtual Waiting Room (Challenge 1)
@@ -193,3 +261,8 @@ Outputs:
   UserPoolClientId:
     Description: Cognito User Pool Client ID
     Value: !Ref PlatformUserPoolClient
+
+  CognitoOAuthDomain:
+    Condition: EnableGoogleOAuth
+    Description: Cognito Hosted UI OAuth domain for frontend VITE_COGNITO_OAUTH_DOMAIN
+    Value: !Sub "${CognitoDomainPrefix}.auth.${AWS::Region}.amazoncognito.com"
