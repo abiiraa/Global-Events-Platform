@@ -18,7 +18,7 @@ function RevealOnScroll({ children, className = '' }: { children: React.ReactNod
 
 function StatCounter({ value, label }: { value: string; label: string }) {
   return (
-    <div className="text-center px-8 py-6 backdrop-blur-xl bg-white/[0.02] border border-white/5 rounded-3xl hover:bg-white/[0.04] transition-all hover:-translate-y-1">
+    <div className="text-center px-8 py-6 backdrop-blur-xl bg-white/2 border border-white/5 rounded-3xl hover:bg-white/4  transition-all hover:-translate-y-1">
       <p className="text-4xl md:text-5xl font-black bg-linear-to-r from-blue-400 to-indigo-500 bg-clip-text text-transparent">{value}</p>
       <p className="text-xs text-white/50 mt-3 uppercase tracking-widest font-semibold">{label}</p>
     </div>
@@ -75,7 +75,7 @@ export default function Landing() {
       <section className="relative z-10 min-h-screen flex items-center justify-center pt-24 pb-12">
         <div className="text-center max-w-5xl mx-auto px-6">
           <RevealOnScroll>
-            <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-white/[0.03] border border-white/10 mb-8 backdrop-blur-md">
+            <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-white/3 border border-white/10 mb-8 backdrop-blur-md">
               <span className="w-2 h-2 rounded-full bg-green-400 animate-pulse" />
               <span className="text-xs font-semibold text-white/70 uppercase tracking-wider">Next Gen Ticketing</span>
             </div>
@@ -143,9 +143,9 @@ export default function Landing() {
               { title: 'Live Leaderboards', desc: 'Interactive dashboards, live polls, and real-time leaderboards. Connect with other attendees during the event.', icon: '🏆', color: 'from-green-500/20 to-emerald-500/5' },
               { title: 'Anti-Bot Protection', desc: 'Advanced rate limiting and behavior analysis ensures real fans get tickets, not automated scalper bots.', icon: '🛡️', color: 'from-slate-500/20 to-gray-500/5' },
               { title: 'Instant Delivery', desc: 'Secure digital tickets delivered instantly to your mobile device with dynamic QR codes.', icon: '📱', color: 'from-pink-500/20 to-rose-500/5' },
-            ].map((feature, i) => (
+            ].map((feature) => (
               <RevealOnScroll key={feature.title}>
-                <div className="group h-full p-8 rounded-3xl backdrop-blur-xl bg-white/[0.02] border border-white/5 hover:bg-white/[0.04] hover:border-white/10 transition-all duration-300">
+                <div className="group h-full p-8 rounded-3xl backdrop-blur-xl `bg-white/2` border border-white/5 hover:bg-white/4 hover:border-white/10 transition-all duration-300">
                   <div className={`w-14 h-14 rounded-2xl bg-linear-to-br ${feature.color} flex items-center justify-center text-2xl mb-6 shadow-inner`}>
                     {feature.icon}
                   </div>
@@ -175,7 +175,7 @@ export default function Landing() {
                     { label: 'Event Bus', tech: 'EventBridge (Decoupled bounded contexts)' },
                     { label: 'Buffering', tech: 'SQS (Surge protection)' },
                   ].map(item => (
-                    <div key={item.label} className="flex items-center gap-4 p-4 rounded-2xl bg-white/[0.02] border border-white/5">
+                    <div key={item.label} className="flex items-center gap-4 p-4 rounded-2xl bg-white/2 border border-white/5">
                       <div className="text-xs font-bold uppercase tracking-widest text-blue-400 w-24 shrink-0">{item.label}</div>
                       <div className="text-sm font-medium text-white/70">{item.tech}</div>
                     </div>
@@ -184,7 +184,7 @@ export default function Landing() {
               </div>
               <div className="relative">
                 <div className="absolute inset-0 bg-linear-to-r from-blue-500/20 to-purple-500/20 blur-[100px]" />
-                <div className="relative p-8 rounded-3xl backdrop-blur-xl bg-white/[0.02] border border-white/10 shadow-2xl">
+                <div className="relative p-8 rounded-3xl backdrop-blur-xl bg-white/2 border border-white/10 shadow-2xl">
                   {/* Mock Code Block */}
                   <div className="flex gap-2 mb-4">
                     <div className="w-3 h-3 rounded-full bg-red-500/80" />
@@ -237,12 +237,12 @@ await dynamoDB.transactWrite({
               { q: 'What happens if my session expires?', a: 'Purchase sessions are time-limited. If yours expires, any held seats are released back to inventory and you rejoin the queue.' },
             ].map((item, i) => (
               <RevealOnScroll key={i}>
-                <details className="group rounded-2xl border border-white/10 bg-white/[0.02] backdrop-blur-md overflow-hidden">
-                  <summary className="flex items-center justify-between p-6 cursor-pointer text-lg font-semibold text-white/90 hover:text-white hover:bg-white/[0.02] transition-colors">
+                <details className="group rounded-2xl border border-white/10 `bg-white/2`] backdrop-blur-md overflow-hidden">
+                  <summary className="flex items-center justify-between p-6 cursor-pointer text-lg font-semibold text-white/90 hover:text-white hover:bg-white/2 transition-colors">
                     {item.q}
                     <span className="text-white/40 group-open:rotate-45 transition-transform text-2xl font-light">+</span>
                   </summary>
-                  <div className="px-6 pb-6 text-white/50 leading-relaxed font-light border-t border-white/5 pt-4 bg-white/[0.01]">{item.a}</div>
+                  <div className="px-6 pb-6 text-white/50 leading-relaxed font-light border-t border-white/5 pt-4 bg-white/1">{item.a}</div>
                 </details>
               </RevealOnScroll>
             ))}
@@ -252,7 +252,7 @@ await dynamoDB.transactWrite({
 
       {/* CTA */}
       <section className="relative z-10 py-32 border-t border-white/5">
-        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[400px] bg-[radial-gradient(ellipse,rgba(59,130,246,0.15),transparent_70%)] blur-[100px]" />
+        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-150 h-100 bg-[radial-gradient(ellipse,rgba(59,130,246,0.15),transparent_70%)] blur-[100px]" />
         <div className="relative max-w-4xl mx-auto px-6 text-center">
           <RevealOnScroll>
             <h2 className="text-5xl md:text-7xl font-black mb-8 tracking-tight">Ready to join?</h2>
